@@ -1,0 +1,563 @@
+
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mon agenda massages</title>
+<style>
+:root {
+  --rose: #eacbd4;
+  --fond: #fffafd;
+  --texte: #59464e;
+  --bordure: #eadde2;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  padding: 20px;
+  background: var(--fond);
+  color: var(--texte);
+  font-family: Arial, sans-serif;
+}
+.container {
+  max-width: 1250px;
+  margin: auto;
+}
+h1 {
+  text-align: center;
+  color: #b77d90;
+}
+.subtitle {
+  text-align: center;
+  color: #987d87;
+  margin-bottom: 25px;
+}
+.navigation {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 15px 0;
+  gap: 10px;
+}
+button, input, select {
+  font: inherit;
+}
+button {
+  cursor: pointer;
+  border: 0;
+  border-radius: 8px;
+  padding: 10px 15px;
+  background: #eacbd4;
+  color: #59464e;
+}
+button:hover { filter: brightness(.96); }
+.calendar-wrap {
+  overflow-x: auto;
+  background: white;
+  border: 1px solid var(--bordure);
+  border-radius: 12px;
+  padding: 8px;
+}
+table {
+  width: 100%;
+  min-width: 850px;
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 3px;
+}
+th {
+  background: #f3e2e8;
+  color: #86596a;
+  padding: 12px 3px;
+  border-radius: 6px;
+  font-size: 13px;
+}
+th:first-child { width: 65px; }
+td {
+  height: 55px;
+  padding: 2px;
+  background: #faf7f8;
+  border-radius: 5px;
+  vertical-align: middle;
+}
+td.hour {
+  background: white;
+  text-align: center;
+  font-weight: bold;
+  font-size: 13px;
+}
+td.slot {
+  cursor: pointer;
+  border: 1px solid #eee5e9;
+  text-align: center;
+  position: relative;
+}
+td.slot:hover { outline: 2px solid #d8a8b8; }
+td.slot .event-name {
+  font-size: 12px;
+  font-weight: bold;
+  overflow-wrap: anywhere;
+}
+td.slot .event-time {
+  font-size: 10px;
+  margin-top: 3px;
+}
+td.slot.continuation .event-name {
+  font-size: 10px;
+  font-weight: normal;
+}
+.editor, .event-list {
+  margin-top: 25px;
+  background: white;
+  border: 1px solid var(--bordure);
+  border-radius: 12px;
+  padding: 20px;
+}
+.editor h2, .event-list h2 {
+  color: #b77d90;
+  margin-top: 0;
+}
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 13px;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.field.full { grid-column: 1 / -1; }
+input, select {
+  width: 100%;
+  border: 1px solid var(--bordure);
+  border-radius: 7px;
+  padding: 11px;
+  background: white;
+  color: var(--texte);
+}
+.colors {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.color {
+  width: 34px;
+  height: 34px;
+  border: 3px solid transparent;
+  border-radius: 50%;
+  cursor: pointer;
+}
+.color.selected { border-color: #70505d; }
+.actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 15px;
+}
+.delete { background: #f3d5d5; }
+.event-row {
+  padding: 12px;
+  border-bottom: 1px solid var(--bordure);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+.event-dot {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  margin-right: 8px;
+}
+.hint {
+  text-align: center;
+  color: #9c858e;
+  font-size: 12px;
+  margin-top: 12px;
+}
+@media(max-width:600px) {
+  body { padding: 10px; }
+  .form-grid { grid-template-columns: 1fr; }
+  .field.full { grid-column: auto; }
+}
+</style>
+</head>
+<body>
+<div class="container">
+
+<h1>🌸 Mon agenda massages</h1>
+<p class="subtitle">Mon planning hebdomadaire</p>
+
+<div class="navigation">
+  <button id="prev">← Semaine précédente</button>
+  <strong id="weekTitle"></strong>
+  <button id="next">Semaine suivante →</button>
+</div>
+
+<div class="calendar-wrap">
+  <table id="calendar"></table>
+</div>
+<p class="hint">
+  Clique directement sur une case pour ajouter un rendez-vous.
+  Toutes les cases de la durée choisie seront colorées.
+</p>
+
+<section class="editor" id="editor">
+<h2>✏️ Ajouter un massage ou un événement</h2>
+
+<div class="form-grid">
+  <div class="field">
+    <label for="day">Jour</label>
+    <select id="day"></select>
+  </div>
+
+  <div class="field">
+    <label for="start">Heure de début</label>
+    <select id="start"></select>
+  </div>
+
+  <div class="field">
+    <label for="end">Heure de fin</label>
+    <select id="end"></select>
+  </div>
+
+  <div class="field full">
+    <label for="description">Type de massage ou événement</label>
+    <input id="description"
+      placeholder="Ex : Massage relaxant, drainage, pause...">
+  </div>
+
+  <div class="field full">
+    <label>Couleur du rendez-vous</label>
+    <div class="colors" id="colors"></div>
+  </div>
+</div>
+
+<div class="actions">
+  <button id="save">Enregistrer le rendez-vous</button>
+  <button class="delete" id="remove" hidden>
+    Supprimer le rendez-vous
+  </button>
+  <button id="cancel">Annuler</button>
+</div>
+</section>
+
+<section class="event-list">
+<h2>📅 Mes rendez-vous</h2>
+<div id="eventsList">Aucun rendez-vous enregistré.</div>
+</section>
+
+</div>
+
+<script>
+const palette = [
+  {name:"Rose", value:"#EBC3CF"},
+  {name:"Bleu", value:"#BBD9EE"},
+  {name:"Vert", value:"#C5E1CF"},
+  {name:"Violet", value:"#D9C9EF"},
+  {name:"Orange", value:"#F4D1AC"},
+  {name:"Jaune", value:"#F3E5A9"}
+];
+
+const dayNames = [
+  "Lundi","Mardi","Mercredi","Jeudi",
+  "Vendredi","Samedi","Dimanche"
+];
+
+let currentWeek = mondayOf(new Date());
+let events = [];
+let selectedColor = palette[0].value;
+let editingId = null;
+let selectedDay = 0;
+let selectedStart = 9;
+
+const $ = id => document.getElementById(id);
+const calendar = $("calendar");
+
+function mondayOf(date) {
+  const d = new Date(date);
+  d.setHours(12,0,0,0);
+  const offset = (d.getDay()+6)%7;
+  d.setDate(d.getDate()-offset);
+  return d;
+}
+
+function dateAt(day) {
+  const d = new Date(currentWeek);
+  d.setDate(d.getDate()+day);
+  return d;
+}
+
+function dateKey(d) {
+  return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")
+    +"-"+String(d.getDate()).padStart(2,"0");
+}
+
+function formatDate(d) {
+  return d.toLocaleDateString("fr-FR", {
+    day:"numeric", month:"short"
+  });
+}
+
+function populateSelects() {
+  $("day").innerHTML = "";
+  dayNames.forEach((name,i) => {
+    const option = new Option(
+      name+" "+formatDate(dateAt(i)), i
+    );
+    $("day").add(option);
+  });
+
+  $("start").innerHTML = "";
+  for(let h=9;h<=20;h++) {
+    $("start").add(new Option(h+"h",h));
+  }
+
+  $("end").innerHTML = "";
+  for(let h=10;h<=21;h++) {
+    $("end").add(new Option(h+"h",h));
+  }
+}
+
+function drawColors() {
+  $("colors").innerHTML = "";
+  palette.forEach(c => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "color";
+    b.title = c.name;
+    b.style.background = c.value;
+    b.classList.toggle("selected",selectedColor===c.value);
+    b.onclick = () => {
+      selectedColor=c.value;
+      drawColors();
+    };
+    $("colors").appendChild(b);
+  });
+}
+
+function render() {
+  $("weekTitle").textContent =
+    "Semaine du "+formatDate(currentWeek);
+
+  populateSelects();
+  calendar.innerHTML = "";
+
+  const head = document.createElement("tr");
+  const hourHead = document.createElement("th");
+  hourHead.textContent = "Heure";
+  head.appendChild(hourHead);
+
+  for(let i=0;i<7;i++) {
+    const th = document.createElement("th");
+    th.textContent = dayNames[i]+" "+formatDate(dateAt(i));
+    head.appendChild(th);
+  }
+  calendar.appendChild(head);
+
+  for(let h=9;h<21;h++) {
+    const tr = document.createElement("tr");
+    const time = document.createElement("td");
+    time.className="hour";
+    time.textContent=h+"h";
+    tr.appendChild(time);
+
+    for(let day=0;day<7;day++) {
+      const td=document.createElement("td");
+      td.className="slot";
+
+      const event=events.find(e =>
+        e.date===dateKey(dateAt(day)) &&
+        h>=e.start && h<e.end
+      );
+
+      if(event) {
+        td.style.background=event.color;
+        td.style.color="#49333B";
+
+        if(h===event.start) {
+          const name=document.createElement("div");
+          name.className="event-name";
+          name.textContent=event.description;
+          td.appendChild(name);
+
+          const timeLabel=document.createElement("div");
+          timeLabel.className="event-time";
+          timeLabel.textContent=event.start+"h – "+event.end+"h";
+          td.appendChild(timeLabel);
+        } else {
+          td.classList.add("continuation");
+          td.textContent="↕ "+event.description;
+        }
+      }
+
+      td.addEventListener("click", () => {
+        openEditor(day,h,event);
+      });
+      tr.appendChild(td);
+    }
+    calendar.appendChild(tr);
+  }
+
+  renderList();
+  drawColors();
+}
+
+function openEditor(day,h,event=null) {
+  selectedDay=day;
+  selectedStart=h;
+  editingId=event ? event.id : null;
+
+  $("day").value=day;
+  $("start").value=event ? event.start : h;
+  $("end").value=event ? event.end : Math.min(h+1,21);
+  $("description").value=event ? event.description : "";
+  selectedColor=event ? event.color : palette[0].value;
+  $("remove").hidden=!event;
+
+  drawColors();
+  $("editor").scrollIntoView({behavior:"smooth"});
+}
+
+$("start").addEventListener("change", () => {
+  const start=Number($("start").value);
+  const end=$("end");
+  if(Number(end.value)<=start) end.value=start+1;
+});
+
+$("save").onclick=() => {
+  const description=$("description").value.trim();
+  const day=Number($("day").value);
+  const start=Number($("start").value);
+  const end=Number($("end").value);
+  if(!description) {
+    alert("Inscris le type de massage ou d'événement.");
+    return;
+  }
+  if(end<=start) {
+    alert("L'heure de fin doit être après l'heure de début.");
+    return;
+  }
+
+  const date=dateKey(dateAt(day));
+
+  // Empêcher les chevauchements de rendez-vous.
+  const conflict=events.some(e =>
+    e.date===date &&
+    e.id!==editingId &&
+    start<e.end && end>e.start
+  );
+
+  if(conflict) {
+    alert("Ce créneau est déjà réservé.");
+    return;
+  }
+
+  if(editingId!==null) {
+    events=events.filter(e=>e.id!==editingId);
+  }
+
+  events.push({
+    id:editingId ?? Date.now(),
+    date, start, end, description,
+    color:selectedColor
+  });
+
+  saveData();
+  clearEditor();
+  render();
+};
+
+$("remove").onclick=() => {
+  if(editingId===null) return;
+  events=events.filter(e=>e.id!==editingId);
+  saveData();
+  clearEditor();
+  render();
+};
+
+$("cancel").onclick=clearEditor;
+
+function clearEditor() {
+  editingId=null;
+  $("description").value="";
+  $("remove").hidden=true;
+  selectedColor=palette[0].value;
+  drawColors();
+}
+
+function renderList() {
+  const list=$("eventsList");
+  list.innerHTML="";
+  const weekStart=dateKey(currentWeek);
+  const weekEnd=new Date(currentWeek);
+  weekEnd.setDate(weekEnd.getDate()+7);
+
+  const visible=events.filter(e =>
+    e.date>=weekStart && e.date<dateKey(weekEnd)
+  ).sort((a,b)=>a.date.localeCompare(b.date)||a.start-b.start);
+
+  if(!visible.length) {
+    list.textContent="Aucun rendez-vous enregistré.";
+    return;
+  }
+
+  visible.forEach(e=>{
+    const row=document.createElement("div");
+    row.className="event-row";
+
+    const info=document.createElement("span");
+    const dot=document.createElement("span");
+    dot.className="event-dot";
+    dot.style.background=e.color;
+
+    const d=new Date(e.date+"T12:00:00");
+    info.append(dot,dayNames[(d.getDay()+6)%7]+" "+
+      formatDate(d)+" · "+e.start+"h–"+e.end+"h · "+
+      e.description);
+
+    const edit=document.createElement("button");
+    edit.textContent="Modifier";
+    edit.onclick=()=>{
+      const day=(d.getDay()+6)%7;
+      openEditor(day,e.start,e);
+    };
+
+    row.append(info,edit);
+    list.appendChild(row);
+  });
+}
+
+$("prev").onclick=()=>{
+  currentWeek.setDate(currentWeek.getDate()-7);
+  render();
+};
+
+$("next").onclick=()=>{
+  currentWeek.setDate(currentWeek.getDate()+7);
+  render();
+};
+
+// Les données sont sauvegardées dans le navigateur.
+function saveData() {
+  try {
+    localStorage.setItem("agendaMassages",JSON.stringify(events));
+  } catch(e) {
+    alert("Impossible de sauvegarder les rendez-vous.");
+  }
+}
+
+try {
+  events=JSON.parse(localStorage.getItem("agendaMassages")||"[]");
+  if(!Array.isArray(events)) events=[];
+} catch(e) {
+  events=[];
+}
+
+render();
+</script>
+</body>
+</html>
